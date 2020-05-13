@@ -13,7 +13,8 @@ class PMBus:
         self.VOUT_MODE = self._readBytePMBus(0x20)
         voutN = self.VOUT_MODE & 0b00011111
         self.VOUT_N = self.twos_comp(voutN, 5)
-        print("DRQ1250 succesfully connected to PMBus... \n")
+        print("Succesfully connected to PMBus...")
+        print("Default N-value = " + str(self.VOUT_N) + "\n" )
 
     #Decode/encode Linear data format => X=Y*2^N
     def _decodePMBus(self, message):
@@ -24,14 +25,39 @@ class PMBus:
 
     def _encodePMBus(self, message):
         YMAX = 1023.0
-        #print(message)
+        print(message)
         Nval = int(math.log(message/YMAX,2))
-        #print("NVal: " + str(Nval))
-        Yval = int(message*(2**-Nval))
-        #print("YVal: " + str(Yval))
+        print("NVal: " + str(Nval))
+        Yval = int(message/(2**-Nval))
+        print("YVal: " + str(Yval))
         message = ((Nval & 0b00011111)<<11) | Yval
-        #print(bin(message))
+        print(message, bin(message))
         return message
+
+    def _encodePMBusVout(self, value):
+        Nval = -1 * self.VOUT_N
+        print("Nval: " + str(Nval))
+        Vval = int(value/(2**-Nval))
+        print("Vval: " + str(Vval))
+        return Vval
+
+    def _encode_N_PMBus(self, value, N):
+        print(value)
+        Nval = N
+        print("NVal: " + str(Nval))
+        Yval = int(value/(2**Nval))
+        print("YVal: " + str(Yval))
+        value = ((Nval & 0b00011111)<<11) | Yval
+        print(value, bin(value))
+        return value
+
+    def _encode_N_PMBusIout(self, value, N):
+        print(value)
+        Nval = N
+        print("NVal: " + str(Nval))
+        Ival = int(value/(2**Nval))
+        print("IVal: " + str(Ival))
+        return Ival
 
     #wrapper functions for reading/writing a word/byte to an address with pec
     def _writeWordPMBus(self, cmd, word, pecByte=True):
@@ -57,6 +83,19 @@ class PMBus:
         bus = SMBus(self.busID)
         bus.pec = pecByte
         data = bus.read_byte_data(self.address, cmd)
+        bus.close()
+        return data
+
+    def _writeBlockPMBus(self, cmd, list, pecByte=True):
+        bus = SMBus(self.busID)
+        bus.pec = pecByte
+        bus.write_i2c_block_data(self.address, cmd, list)
+        bus.close()
+
+    def _readBlockPMBus(self, cmd, pecByte=True):
+        bus = SMBus(self.busID)
+        bus.pec = pecByte
+        data = bus.read_i2c_block_data(self.address, cmd)
         bus.close()
         return data
 
@@ -244,6 +283,64 @@ class PMBus:
     def regOn(self):
         self._writeBytePMBus(0x01,0x80)
 
+    def setCURVE_CC(self, value):
+        """Set CURVE_CC, max 17.5A."""
+        N = -4
+        maxCurrent = 17.5
+        if value < maxCurrent:
+            value = float(value)
+        else:
+            value = maxCurrent
+
+        self._writeWordPMBus(0xB0, self._encode_N_PMBus(value, N))
+
+    def setCURVE_CV(self, value):
+        """Set CURVE_CV, max 60.0V."""
+        maxVolt = 60.0
+        if float(value) < maxVolt:
+            value = float(value)
+        else:
+            value = maxVolt
+
+        self._writeWordPMBus(0xB1, self._encodePMBusVout(value))
+
+    def setCURVE_FV(self, value):
+        """Set CURVE_FV, max 57.0V."""
+        maxVolt = 57.0
+        if float(value) < maxVolt:
+            value = float(value)
+        else:
+            value = maxVolt
+
+        self._writeWordPMBus(0xB2, self._encodePMBusVout(value))
+
+    def setCURVE_TC(self, value):
+        """Set CURVE_TC, max 5.0A."""
+        N = -4
+        maxCurrent = 5.0
+        if value < maxCurrent:
+            value = float(value)
+        else:
+            value = maxCurrent
+
+        self._writeWordPMBus(0xB3, self._encode_N_PMBus(value, N))
+
+    def setPMBusMode(self):
+        """Set to PMBus Mode."""
+        self._writeWordPMBus(0xBE, 3)
+
+    def setUserMode(self):
+        """Set to User Mode."""
+        self._writeWordPMBus(0xBE, 2)
+
+    def setChargerMode(self):
+        """Set to Charger Mode."""
+        self._writeWordPMBus(0xB4, 132)
+
+    def setPSUMode(self):
+        """Set to PSU Mode."""
+        self._writeWordPMBus(0xB4, 4)
+
     ################################### Functions for getting PMBus values
     def getVoltageIn(self):
         self.voltageIn = self._decodePMBus(self._readWordPMBus(0x88))
@@ -251,6 +348,8 @@ class PMBus:
 
     def getVoltageOut(self):
         voltageOutMessage = self._readWordPMBus(0x8B)
+        print(voltageOutMessage)
+        print(self.VOUT_N)
         self.voltageOut = voltageOutMessage*(2.0**self.VOUT_N)
         return self.voltageOut
 
@@ -354,6 +453,83 @@ class PMBus:
             "unknown" :       bool(self.statusSummary & (0b1<<8)),
         }
         return status, self.statusSummary
+
+    def getCURVE_CC(self):
+        bus = SMBus(1)
+        self.current = self._decodePMBus(self._readWordPMBus(0xB0))
+        bus.close()
+        return self.current
+
+    def getCURVE_CV(self):
+        voltageOutMessage = self._readWordPMBus(0xB1)
+        self.voltageOut = voltageOutMessage*(2.0**self.VOUT_N)
+        return self.voltageOut
+
+    def getCURVE_FV(self):
+        voltageOutMessage = self._readWordPMBus(0xB2)
+        self.voltageOut = voltageOutMessage*(2.0**self.VOUT_N)
+        return self.voltageOut
+
+    def getCURVE_TC(self):
+        bus = SMBus(1)
+        self.current = self._decodePMBus(self._readWordPMBus(0xB3))
+        bus.close()
+        return self.current
+
+    def getCurveConfig(self):
+        """The charger status."""
+        self.statusSummary = self._readWordPMBus(0xB4)
+        status = {
+            "CUVS_A" :        bool(self.statusSummary & (0b1)),
+            "CUVS_B" :        bool(self.statusSummary & (0b1<<1)),
+            "TCS_A" :         bool(self.statusSummary & (0b1<<2)),
+            "TCS_B" :         bool(self.statusSummary & (0b1<<3)),
+            "STGS" :          bool(self.statusSummary & (0b1<<6)),
+            "CUVE" :        bool(self.statusSummary & (0b1<<7)),
+            "CCTOE" :         bool(self.statusSummary & (0b1<<8)),
+            "CVTOE" :         bool(self.statusSummary & (0b1<<9)),
+            "FVTOE" :         bool(self.statusSummary & (0b1<<10)),
+        }
+        return status, self.statusSummary
+
+    def getCHGStatus(self):
+        """The charger status."""
+        self.statusSummary = self._readWordPMBus(0xB8)
+        status = {
+            "FULLM" :         bool(self.statusSummary & (0b1)),
+            "CCM" :           bool(self.statusSummary & (0b1<<1)),
+            "CVM" :           bool(self.statusSummary & (0b1<<2)),
+            "FVM" : 	      bool(self.statusSummary & (0b1<<3)),
+            "NTCER" :         bool(self.statusSummary & (0b1<<10)),
+            "BTNC" :          bool(self.statusSummary & (0b1<<11)),
+            "CCTOF" :         bool(self.statusSummary & (0b1<<13)),
+            "CVTOF" :         bool(self.statusSummary & (0b1<<14)),
+            "FVTOF" :         bool(self.statusSummary & (0b1<<15)),
+        }
+        return status, self.statusSummary
+
+    def getSystemConfig(self):
+        """The charger status."""
+        self.statusSummary = self._readWordPMBus(0xBE)
+        status = {
+            "PM_CTL" :        bool(self.statusSummary & (0b1)),
+            "OPER_INIT_A" :   bool(self.statusSummary & (0b1<<1)),
+            "OPER_INIT_B" :   bool(self.statusSummary & (0b1<<2)),
+        }
+        return status, self.statusSummary
+
+
+    def getSystemStatus(self):
+        """The charger status."""
+        self.statusSummary = self._readWordPMBus(0xBF)
+        status = {
+            "DC_OK" :         bool(self.statusSummary & (0b1<<1)),
+            "ADL_ON" :        bool(self.statusSummary & (0b1<<4)),
+            "INITIAL_STATE" : bool(self.statusSummary & (0b1<<5)),
+            "EEPER" :         bool(self.statusSummary & (0b1<<6)),
+        }
+        return status, self.statusSummary
+
 
     #method for computing twos complement
     def twos_comp(self, val, bits):
