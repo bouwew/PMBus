@@ -27,4 +27,6 @@ Systen Config: ({'PM_CTL': True, 'OPER_INIT_A': True, 'OPER_INIT_B': False}, 3)
 ```
 Commands to use:
 `python3 runner.py` to obtain the above output.
-`python3 program.py` to program the HEP-1000, I have only tested with one programming-line uncommented. 
+`python3 program.py` to program the HEP-1000, I have only tested with one programming-line uncommented.
+
+Note: there could be bugs, Status is not tested. Charger Status, Curve Config, System Status and System Config are tested and appear to be correct.
