@@ -1,3 +1,5 @@
+"""" Forked from https://github.com/Michael-Equi/PMBus and improved for use with the MEANWELL HEP-1000. """
+
 from smbus import SMBus
 import math
 
@@ -485,7 +487,7 @@ class PMBus:
             "TCS_A" :         bool(self.statusSummary & (0b1<<2)),
             "TCS_B" :         bool(self.statusSummary & (0b1<<3)),
             "STGS" :          bool(self.statusSummary & (0b1<<6)),
-            "CUVE" :        bool(self.statusSummary & (0b1<<7)),
+            "CUVE" :          bool(self.statusSummary & (0b1<<7)),
             "CCTOE" :         bool(self.statusSummary & (0b1<<8)),
             "CVTOE" :         bool(self.statusSummary & (0b1<<9)),
             "FVTOE" :         bool(self.statusSummary & (0b1<<10)),
@@ -499,7 +501,7 @@ class PMBus:
             "FULLM" :         bool(self.statusSummary & (0b1)),
             "CCM" :           bool(self.statusSummary & (0b1<<1)),
             "CVM" :           bool(self.statusSummary & (0b1<<2)),
-            "FVM" : 	      bool(self.statusSummary & (0b1<<3)),
+            "FVM" : 	         bool(self.statusSummary & (0b1<<3)),
             "NTCER" :         bool(self.statusSummary & (0b1<<10)),
             "BTNC" :          bool(self.statusSummary & (0b1<<11)),
             "CCTOF" :         bool(self.statusSummary & (0b1<<13)),
@@ -518,7 +520,6 @@ class PMBus:
         }
         return status, self.statusSummary
 
-
     def getSystemStatus(self):
         """The charger status."""
         self.statusSummary = self._readWordPMBus(0xBF)
@@ -529,7 +530,6 @@ class PMBus:
             "EEPER" :         bool(self.statusSummary & (0b1<<6)),
         }
         return status, self.statusSummary
-
 
     #method for computing twos complement
     def twos_comp(self, val, bits):
