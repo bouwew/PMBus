@@ -16,7 +16,7 @@ class PMBus:
         voutN = self.VOUT_MODE & 0b00011111
         self.VOUT_N = self.twos_comp(voutN, 5)
         print("Succesfully connected to PMBus...")
-        print("Default N-value = " + str(self.VOUT_N) + "\n" )
+        #print("Default N-value = " + str(self.VOUT_N) + "\n" )
 
     #Decode/encode Linear data format => X=Y*2^N
     def _decodePMBus(self, message):
@@ -27,38 +27,38 @@ class PMBus:
 
     def _encodePMBus(self, message):
         YMAX = 1023.0
-        print(message)
+        #print(message)
         Nval = int(math.log(message/YMAX,2))
-        print("NVal: " + str(Nval))
+        #print("NVal: " + str(Nval))
         Yval = int(message/(2**-Nval))
-        print("YVal: " + str(Yval))
+        #print("YVal: " + str(Yval))
         message = ((Nval & 0b00011111)<<11) | Yval
-        print(message, bin(message))
+        #print(message, bin(message))
         return message
 
     def _encodePMBusVout(self, value):
         Nval = -1 * self.VOUT_N
-        print("Nval: " + str(Nval))
+        #print("Nval: " + str(Nval))
         Vval = int(value/(2**-Nval))
-        print("Vval: " + str(Vval))
+        #print("Vval: " + str(Vval))
         return Vval
 
     def _encode_N_PMBus(self, value, N):
-        print(value)
+        #print(value)
         Nval = N
-        print("NVal: " + str(Nval))
+        #print("NVal: " + str(Nval))
         Yval = int(value/(2**Nval))
-        print("YVal: " + str(Yval))
+        #print("YVal: " + str(Yval))
         value = ((Nval & 0b00011111)<<11) | Yval
-        print(value, bin(value))
+        #print(value, bin(value))
         return value
 
     def _encode_N_PMBusIout(self, value, N):
-        print(value)
+        #print(value)
         Nval = N
-        print("NVal: " + str(Nval))
+        #print("NVal: " + str(Nval))
         Ival = int(value/(2**Nval))
-        print("IVal: " + str(Ival))
+        #print("IVal: " + str(Ival))
         return Ival
 
     #wrapper functions for reading/writing a word/byte to an address with pec
@@ -102,187 +102,36 @@ class PMBus:
         return data
 
     ################################### Functions for setting PMBus values
-    def setVinUVLimit(self, uvLimit, minUnderVolt=32.0):
-        """The VIN_UV_WARN_LIMIT command sets the value of the input voltage that causes an
-        input voltage low warning. This value is typically greater than the input undervoltage
-        fault threshold, VIN_UV_FAULT_LIMIT (Section 15.27). The VIN_UV_FAULT_LIMIT
-        command sets the value of the input voltage that causes an input undervoltage fault."""
-        #min = 32, max = 75 on DRQ1250
-        if(uvLimit > minUnderVolt):
-            uvWarnLimit  = float(uvLimit) + 2
-            uvFaultLimit = float(uvLimit)
-        else:
-            uvWarnLimit  = minUnderVolt + 2
-            uvFaultLimit = minUnderVolt
+    def setVoutTrim(self, value, minTrimVoltage=-24.0, maxTrimVoltage=12.0):
+        """The VOUT_TRIM command sets the value of the output voltage related to the default voltage VOUT."""
+        if value < minTrimVoltage:
+            value = minTrimVoltage
+        if value > maxTrimVoltage:
+            value = maxTrimVoltage
 
-        #print("Old VIN UV Limit: " + str(self.getVinUVLimit()))
-        self._writeWordPMBus(0x59, self._encodePMBus(uvFaultLimit))
-        self._writeWordPMBus(0x58, self._encodePMBus(uvWarnLimit))
-        #print("New VIN UV Limit: " + str(self.getVinUVLimit()))
-
-    def setVinOVLimit(self, ovLimit, maxOverVolt=110.0):
-        """The VIN_OV_WARN_LIMIT command sets the value of the input voltage that causes an
-        input voltage high warning. This value is typically less than the input overvoltage fault
-        threshold. The VIN_OV_FAULT_LIMIT command sets the value of the input voltage that causes an
-        input overvoltage fault."""
-        #min = 32, max = 110 on DRQ1250
-        if(ovLimit < maxOverVolt):
-            ovWarnLimit  = float(ovLimit) - 2
-            ovFaultLimit = float(ovLimit)
-        else:
-            ovWarnLimit  = maxOverVolt - 2
-            ovFaultLimit = maxOverVolt
-
-        #print("Old VIN OV Limit: " + str(self.getVinOVLimit()))
-        self._writeWordPMBus(0x55, self._encodePMBus(ovFaultLimit))
-        self._writeWordPMBus(0x57, self._encodePMBus(ovWarnLimit))
-        #print("New VIN OV Limit: " + str(self.getVinOVLimit()))
-
-    def setVoutOVLimit(self, ovLimit, maxOverVolt=15.6):
-        """The VOUT_OV_WARN_LIMIT command sets the value of the output voltage at the
-        sense or output pins that causes an output voltage high warning. This value is typically
-        less than the output overvoltage threshold. The VOUT_OV_FAULT_LIMIT command sets the value
-        of the output voltage measured at the sense or output pins that causes an output
-        overvoltage fault."""
-        #min = 8.1, max=15.6 on DRQ1250
-        if(ovLimit < maxOverVolt):
-            ovWarnLimit  = float(ovLimit) - 1
-            ovFaultLimit = float(ovLimit)
-        else:
-            ovWarnLimit  = maxOverVolt - 1
-            ovFaultLimit = maxOverVolt
-
-        ovWarnLimit  = int(ovWarnLimit*(2**-self.VOUT_N))
-        ovFaultLimit = int(ovFaultLimit*(2**-self.VOUT_N))
-
-        #print("Old VOUT OV Limit: " + str(self.getVoutOVLimit()))
-        self._writeWordPMBus(0x40, ovFaultLimit)
-        self._writeWordPMBus(0x42, ovWarnLimit)
-        #print("New VOUT OV Limit: " + str(self.getVoutOVLimit()))
+        self._writeWordPMBus(0x22, self._encodePMBusVout(value))
 
     def setIoutOCLimit(self, ocLimit, maxOverCurrent=65.0):
         """The IOUT_OV_WARN_LIMIT command sets the value of the output current that causes
         an output overcurrent warning. The IOUT_OC_FAULT_LIMIT command sets the value of the output current, in
         amperes, that causes the overcurrent detector to indicate an overcurrent fault condition."""
         #min = 59, max = 65 for DRQ1250
-        if(ocLimit < maxOverCurrent):
-            ocWarnLimit  = float(ocLimit) - 3
+        N = -4
+        if ocLimit < maxOverCurrent:
             ocFaultLimit = float(ocLimit)
         else:
-            ocWarnLimit  = maxOverCurrent - 3
             ocFaultLimit = maxOverCurrent
 
-        #print("Old IOUT OC Limit: " + str(self.getIoutOCLimit()))
-        self._writeWordPMBus(0x46, self._encodePMBus(ocFaultLimit))
-        self._writeWordPMBus(0x4A, self._encodePMBus(ocWarnLimit))
-        #print("New IOUT OC Limit: " + str(self.getIoutOCLimit()))
-
-    def setIoutFaultResponse(self, byte):
-        #see page 37-40 on PMBus spec for info on response bytes
-        #print("Old IOUT Fault Response: " + bin(self.getIoutFaultResponse()))
-        self._writeBytePMBus(0x47, byte)
-        #print("New IOUT Fault Response: " + bin(self.getIoutFaultResponse()))
-
-    def setOTLimit(self, otLimit, maxOverTemp=145.0):
-        """The OT_WARN_LIMIT command set the temperature, in degrees Celsius, of the unit at
-        which it should indicate an Overtemperature Warning alarm. The OT_FAULT_LIMIT command
-        set the temperature, in degrees Celsius, of the unit at which it should indicate an Overtemperature Fault."""
-        #min = 30, max = 145 for DRQ1250
-        if(otLimit < maxOverTemp):
-            otWarnLimit  = float(otLimit) - 3
-            otFaultLimit = float(otLimit)
-        else:
-            otWarnLimit  = maxOverTemp - 3
-            otFaultLimit = maxOverTemp
-
-        #print("Old OT Limit: " + str(self.getOTLimit()))
-        self._writeWordPMBus(0x4F, self._encodePMBus(otFaultLimit))
-        self._writeWordPMBus(0x51, self._encodePMBus(otWarnLimit))
-        #print("New OT Limit: " + str(self.getOTLimit()))
-
-    def setFaultResponse(self, register, byte):
-        #see page 37-40 on PMBus spec for info on response bytes
-        """
-        DRQ1250 registers:
-        VIN UV  = 0x5A
-        VIN OV  = 0x56
-        VOUT OV = 0x41
-        OT      = 0x50
-        """
-        print("Old Fault Response: " + bin(self.getFaultResponse(register)))
-        return self._writeBytePMBus(register, byte)
-        print("New Fault Response: " + bin(self.getFaultResponse(register)))
-
-    def setTonDelay(self, delay):
-        """The TON_DELAY sets the time, in milliseconds, from when a start condition
-        is received (as programmed by the ON_OFF_CONFIG command) until the output
-        voltage starts to rise."""
-        #max delay is 500ms min is 1ms for DRQ1250
-        self._writeWordPMBus(0x60, self._encodePMBus(delay))
-
-    def setTonRise(self, time):
-        """The TON_RISE sets the time, in milliseconds, from when the output starts to rise until
-        the voltage has entered the regulation band."""
-        #max time is 100ms, min is 10ms for DRQ1250
-        self._writeWordPMBus(0x61, self._encodePMBus(time))
-
-
-    def setToffDelay(self, delay):
-        """The TOFF_DELAY sets the time, in milliseconds, from a stop condition
-        is received (as programmed by the ON_OFF_CONFIG command) until the unit
-        stops transferring energy to the output."""
-        #max delay is 500ms, min is 0ms for DRQ1250
-        self._writeWordPMBus(0x64, self._encodePMBus(delay))
-
-    def setToffFall(self, time):
-        """The TOFF_FALL sets the time, in milliseconds, from the end of the turn-off delay time
-        (Section 16.5) until the voltage is commanded to zero. Note that this command can only be used
-        with a device whose output can sink enough current to cause the output voltage
-        to decrease at a controlled rate."""
-        #max time is 100ms, min is 10ms for DRQ1250
-        self._writeWordPMBus(0x65, self._encodePMBus(time))
-
-
-    def storeUserAll(self):
-        """The STORE_USER_ALL command instructs the PMBus device to copy the entire
-        contents of the Operating Memory to the matching locations in the non-volatile User
-        Store memory. Any items in Operating Memory that do not have matching locations in
-        the User Store are ignored."""
-        self._writeBytePMBus(0x15,0x00)
-
-    def restoreUserAll(self):
-        """The RESTORE_USER_ALL command instructs the PMBus device to copy the entire
-        contents of the non-volatile User Store memory to the matching locations in the
-        Operating Memory. The values in the Operating Memory are overwritten by the value
-        retrieved from the User Store. Any items in User Store that do not have matching
-        locations in the Operating Memory are ignored."""
-        self._writeBytePMBus(0x16,0x00)
-
-    def restoreDefaultAll(self):
-        """The RESTORE_DEFAULT_ALL command instructs the PMBus device to copy the entire
-        contents of the non-volatile Default Store memory to the matching locations in the
-        Operating Memory. The values in the Operating Memory are overwritten by the value
-        retrieved from the Default Store. Any items in Default Store that do not have matching
-        locations in the Operating Memory are ignored."""
-        self._writeBytePMBus(0x12,0x00)
-
-    def clearFaults(self):
-        """The CLEAR_FAULTS command is used to clear any fault bits that have been set. This
-        command clears all bits in all status registers simultaneously. At the same time, the
-        device negates (clears, releases) its SMBALERT# signal output if the device is asserting
-        the SMBALERT# signal.The CLEAR_FAULTS does not cause a unit that has latched off for a
-        fault condition to restart. Units that have shut down for a fault condition are restarted
-        as described in Section 10.7."""
-        self._writeBytePMBus(0x03,0x00)
+        self._writeWordPMBus(0x46, self._encode_N_PMBus(ocFaultLimit, N))
 
     #See PMBus spec page 53-54 for information on the on/off functionality
-    def regOff(self, hard=False):
+    def setOff(self, hard=False):
         if hard:
             self._writeBytePMBus(0x01,0x00) #Hard off
         else:
             self._writeBytePMBus(0x01,0x40) #Soft off
 
-    def regOn(self):
+    def setOn(self):
         self._writeBytePMBus(0x01,0x80)
 
     def setCURVE_CC(self, value):
@@ -350,8 +199,8 @@ class PMBus:
 
     def getVoltageOut(self):
         voltageOutMessage = self._readWordPMBus(0x8B)
-        print(voltageOutMessage)
-        print(self.VOUT_N)
+        #print(voltageOutMessage)
+        #print(self.VOUT_N)
         self.voltageOut = voltageOutMessage*(2.0**self.VOUT_N)
         return self.voltageOut
 
@@ -368,49 +217,13 @@ class PMBus:
             self.powerOut = self.voltageOut * self.current
         return self.powerOut
 
-    def getTempurature(self):
-        self.tempurature = self._decodePMBus(self._readWordPMBus(0x8D))
-        return self.tempurature
-
-    def getVinUVLimit(self):
-        #returns fault, warn
-        return self._decodePMBus(self._readWordPMBus(0x59)), self._decodePMBus(self._readWordPMBus(0x58))
-
-    def getVinOVLimit(self):
-        #returns fault, warn
-        return self._decodePMBus(self._readWordPMBus(0x55)), self._decodePMBus(self._readWordPMBus(0x57))
-
-    def getVoutOVLimit(self):
-        #returns fault, warn
-        return self._readWordPMBus(0x40)*(2.0**self.VOUT_N), self._readWordPMBus(0x42)*(2.0**self.VOUT_N)
+    def getTemperature(self):
+        self.temperature = self._decodePMBus(self._readWordPMBus(0x8D))
+        return self.temperature
 
     def getIoutOCLimit(self):
         #returns fault, warn
         return self._decodePMBus(self._readWordPMBus(0x46)), self._decodePMBus(self._readWordPMBus(0x4A))
-
-    def getOTLimit(self):
-        #returns fault, warn
-        return self._decodePMBus(self._readWordPMBus(0x4F)), self._decodePMBus(self._readWordPMBus(0x51))
-
-    def getTonDelay(self):
-        return self._decodePMBus(self._readWordPMBus(0x60))
-
-    def getTonRise(self):
-        return self._decodePMBus(self._readWordPMBus(0x61))
-
-    def getToffDelay(self):
-        return self._decodePMBus(self._readWordPMBus(0x64))
-
-    def getToffFall(self):
-        return self._decodePMBus(self._readWordPMBus(0x65))
-
-    def getSwitchingFreq(self):
-        #returns value in kHz
-        return self._decodePMBus(self._readWordPMBus(0x95))
-
-    def getDutyCycle(self):
-        #returns value in %
-        return self._decodePMBus(self._readWordPMBus(0x94))
 
     def getIoutFaultResponse(self):
         #see page 37-40 on PMBus spec for info on response bytes
